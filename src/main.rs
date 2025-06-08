@@ -249,7 +249,7 @@ fn start_request_processor(queues: SharedQueues, db: Arc<Mutex<Connection>>, end
                 actix_web::rt::spawn(handle_user_request(user, queues2, db2, qname.to_string(), endpoint2));
             }
 
-            actix_web::rt::time::sleep(Duration::from_secs(2)).await;
+            actix_web::rt::time::sleep(MIN_REQUEST_INTERVAL).await;
         }
     });
 }

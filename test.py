@@ -519,14 +519,14 @@ class QueueServerTester:
                     for _ in range(3):  # Try to get multiple messages
                         msg = await asyncio.wait_for(ws.recv(), timeout=25)  # Wait longer for request processing
                         messages.append(msg)
-                        if "Success:" in msg or "processed" in msg:
+                        if "Position in line" in msg or "processed" in msg:
                             break
                 except asyncio.TimeoutError:
                     pass
                 
                 await ws.close()
                 
-                success_found = any("Success:" in msg or "processed" in msg for msg in messages)
+                success_found = any("Position in line" in msg or "processed" in msg for msg in messages)
                 
                 # Test 2: Error response
                 MockHTTPHandler.response_mode = 'error'

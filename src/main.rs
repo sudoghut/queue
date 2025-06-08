@@ -14,7 +14,6 @@ use uuid::Uuid;
 // --- Constants ---
 const QUEUE_NAMES: [&str; 5] = ["line1", "line2", "line3", "line4", "line5"];
 const MAX_USERS_PER_QUEUE: usize = 5;
-const REQUEST_ENDPOINT: &str = "https://example.com/xxx"; // Replace with actual endpoint
 const MIN_REQUEST_INTERVAL: Duration = Duration::from_secs(20);
 
 // --- Types ---
@@ -214,7 +213,7 @@ impl Handler<WsMessage> for WsSession {
 }
 
 // --- Request Processing Arbiter ---
-fn start_request_processor(queues: SharedQueues, db: Arc<Mutex<Connection>>) {
+fn start_request_processor(queues: SharedQueues, db: Arc<Mutex<Connection>>, endpoint: String) {
     actix_web::rt::spawn(async move {
         let mut rr_idx = 0;
         loop {
@@ -246,7 +245,8 @@ fn start_request_processor(queues: SharedQueues, db: Arc<Mutex<Connection>>) {
                 // Process request
                 let queues2 = queues.clone();
                 let db2 = db.clone();
-                actix_web::rt::spawn(handle_user_request(user, queues2, db2, qname.to_string()));
+                let endpoint2 = endpoint.clone();
+                actix_web::rt::spawn(handle_user_request(user, queues2, db2, qname.to_string(), endpoint2));
             }
 
             actix_web::rt::time::sleep(Duration::from_secs(2)).await;
@@ -255,7 +255,13 @@ fn start_request_processor(queues: SharedQueues, db: Arc<Mutex<Connection>>) {
 }
 
 // --- Request Handler ---
-async fn handle_user_request(user: User, queues: SharedQueues, db: Arc<Mutex<Connection>>, queue_name: String) {
+async fn handle_user_request(
+    user: User,
+    queues: SharedQueues,
+    db: Arc<Mutex<Connection>>,
+    queue_name: String,
+    endpoint: String,
+) {
     let mut attempt = 1;
     let params = user.parameters.clone();
     let request_data = serde_json::to_string(&params).unwrap_or_default();
@@ -277,7 +283,7 @@ async fn handle_user_request(user: User, queues: SharedQueues, db: Arc<Mutex<Con
             actix_web::rt::time::sleep(Duration::from_secs(*wait)).await;
         }
         let resp = reqwest::Client::new()
-            .post(REQUEST_ENDPOINT)
+            .post(&endpoint)
             .json(&params)
             .send()
             .await;
@@ -369,7 +375,13 @@ async fn main() -> std::io::Result<()> {
             .collect(),
     ));
 
-    start_request_processor(queues.clone(), db.clone());
+    // Read endpoint from file
+    let endpoint = std::fs::read_to_string("REQUEST_ENDPOINT.txt")
+        .expect("Failed to read REQUEST_ENDPOINT.txt")
+        .trim()
+        .to_string();
+
+    start_request_processor(queues.clone(), db.clone(), endpoint.clone());
 
     println!("Server running at 127.0.0.1:8080");
     HttpServer::new(move || {
